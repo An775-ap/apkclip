@@ -2,18 +2,179 @@ import os
 import sys
 import threading
 from kivy.app import App
-from kivy.core.window import Window
+from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.textinput import TextInput
-from kivy.uix.spinner import Spinner
-from kivy.uix.button import Button
-from kivy.uix.widget import Widget
 from kivy.clock import mainthread
-from kivy.utils import get_color_from_hex
+from kivy.core.window import Window
 import yt_dlp
 
-Window.clearcolor = get_color_from_hex('#121212')
+# Set base background to a very deep grey/blue
+Window.clearcolor = (0.07, 0.07, 0.09, 1)
+
+# 1. THE UI DESIGN (KV Language)
+# This handles all the rounded corners, colors, and precise spacing
+KV = '''
+<SmoothInput@TextInput>:
+    background_color: 0, 0, 0, 0
+    cursor_color: 1, 1, 1, 1
+    foreground_color: 1, 1, 1, 1
+    font_size: '16sp'
+    padding: [15, (self.height - self.line_height) / 2]
+    canvas.before:
+        Color:
+            rgba: 0.15, 0.15, 0.18, 1
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [10,]
+
+<SmoothButton@Button>:
+    background_color: 0, 0, 0, 0
+    background_normal: ''
+    background_down: ''
+    canvas.before:
+        Color:
+            rgba: (0.9, 0.04, 0.08, 1) if self.state == 'normal' else (0.7, 0.02, 0.06, 1)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [12,]
+
+<ClipperLayout>:
+    orientation: 'vertical'
+    padding: '25dp', '60dp', '25dp', '25dp'
+    spacing: '25dp'
+
+    # App Title
+    Label:
+        text: '[b][color=#e50914]YT[/color] Clipper Pro[/b]'
+        markup: True
+        font_size: '32sp'
+        size_hint_y: None
+        height: '60dp'
+
+    # Floating Card Container for Inputs
+    BoxLayout:
+        orientation: 'vertical'
+        size_hint_y: None
+        height: '240dp'
+        padding: '20dp'
+        spacing: '15dp'
+        canvas.before:
+            Color:
+                rgba: 0.11, 0.11, 0.14, 1
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [15,]
+
+        # URL Input
+        SmoothInput:
+            id: url_input
+            hint_text: 'Paste YouTube link here...'
+            size_hint_y: None
+            height: '50dp'
+
+        # Time Row
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '50dp'
+            spacing: '15dp'
+            
+            # Start Container
+            BoxLayout:
+                spacing: '5dp'
+                Label:
+                    text: 'Start:'
+                    color: 0.7, 0.7, 0.7, 1
+                    bold: True
+                    size_hint_x: None
+                    width: '45dp'
+                SmoothInput:
+                    id: start_m
+                    text: '00'
+                    input_filter: 'int'
+                    halign: 'center'
+                Label:
+                    text: ':'
+                    bold: True
+                    font_size: '20sp'
+                    size_hint_x: None
+                    width: '10dp'
+                SmoothInput:
+                    id: start_s
+                    text: '00'
+                    input_filter: 'int'
+                    halign: 'center'
+
+            # End Container
+            BoxLayout:
+                spacing: '5dp'
+                Label:
+                    text: 'End:'
+                    color: 0.7, 0.7, 0.7, 1
+                    bold: True
+                    size_hint_x: None
+                    width: '40dp'
+                SmoothInput:
+                    id: end_m
+                    text: '00'
+                    input_filter: 'int'
+                    halign: 'center'
+                Label:
+                    text: ':'
+                    bold: True
+                    font_size: '20sp'
+                    size_hint_x: None
+                    width: '10dp'
+                SmoothInput:
+                    id: end_s
+                    text: '15'
+                    input_filter: 'int'
+                    halign: 'center'
+
+        # Format Spinner
+        Spinner:
+            id: ratio_spinner
+            text: '16:9 Standard HD'
+            values: ('16:9 Standard HD', '9:16 Shorts / Reels')
+            size_hint_y: None
+            height: '50dp'
+            background_normal: ''
+            background_color: 0.15, 0.15, 0.18, 1
+            color: 1, 1, 1, 1
+            font_size: '15sp'
+            bold: True
+
+    # Action Button
+    SmoothButton:
+        id: clip_btn
+        text: 'Generate & Save Clip'
+        font_size: '18sp'
+        bold: True
+        size_hint_y: None
+        height: '65dp'
+        on_press: root.start_clipping_thread()
+
+    # Status Message
+    Label:
+        id: status_label
+        text: 'Ready to clip.'
+        color: 0.6, 0.6, 0.6, 1
+        font_size: '14sp'
+        size_hint_y: None
+        height: '40dp'
+        halign: 'center'
+        valign: 'middle'
+        text_size: self.size
+
+    # Pushes everything to the top
+    Widget: 
+'''
+
+# 2. APP LOGIC
+Builder.load_string(KV)
 
 class YTDLLogger:
     def debug(self, msg): pass
@@ -26,103 +187,37 @@ class NullWriter:
     def isatty(self): return False
 
 class ClipperLayout(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(orientation='vertical', padding=[40, 80, 40, 40], spacing=25, **kwargs)
-
-        self.add_widget(Label(
-            text="[b][color=#e50914]YT[/color] Clipper Pro[/b]", 
-            markup=True, font_size='32sp', size_hint_y=None, height=70
-        ))
-
-        # URL Input
-        self.add_widget(Label(text="YouTube URL:", font_size='16sp', bold=True, size_hint_y=None, height=30, halign='left', color=get_color_from_hex('#ffffff')))
-        self.url_input = TextInput(
-            hint_text="Paste link here...", multiline=False, size_hint_y=None, height=55,
-            font_size='16sp', padding_y=[15, 0], background_color=get_color_from_hex('#ffffff')
-        )
-        self.add_widget(self.url_input)
-
-        # Time Input Row 
-        time_container = BoxLayout(orientation='vertical', spacing=10, size_hint_y=None, height=130)
-        
-        start_row = BoxLayout(orientation='horizontal', spacing=5)
-        start_row.add_widget(Label(text="Start Time:", bold=True, size_hint_x=0.4))
-        self.start_m = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
-        start_row.add_widget(self.start_m)
-        start_row.add_widget(Label(text=":", bold=True, font_size='24sp', size_hint_x=0.1))
-        self.start_s = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
-        start_row.add_widget(self.start_s)
-        time_container.add_widget(start_row)
-
-        end_row = BoxLayout(orientation='horizontal', spacing=5)
-        end_row.add_widget(Label(text="End Time:", bold=True, size_hint_x=0.4))
-        self.end_m = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
-        end_row.add_widget(self.end_m)
-        end_row.add_widget(Label(text=":", bold=True, font_size='24sp', size_hint_x=0.1))
-        self.end_s = TextInput(text="15", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
-        end_row.add_widget(self.end_s)
-        time_container.add_widget(end_row)
-        
-        self.add_widget(time_container)
-
-        # Format Options
-        self.ratio_spinner = Spinner(
-            text="16:9 Standard HD",
-            values=("16:9 Standard HD", "9:16 Shorts / Reels"),
-            size_hint_y=None, height=60, font_size='16sp',
-            background_color=get_color_from_hex('#333333'), color=get_color_from_hex('#ffffff')
-        )
-        self.add_widget(self.ratio_spinner)
-
-        # Download Button
-        self.clip_btn = Button(
-            text="Generate & Save Clip", 
-            background_color=get_color_from_hex('#e50914'), color=get_color_from_hex('#ffffff'),
-            font_size='18sp', bold=True, size_hint_y=None, height=65, background_normal=''
-        )
-        self.clip_btn.bind(on_press=self.start_clipping_thread)
-        self.add_widget(self.clip_btn)
-
-        # Status Label
-        self.status_label = Label(
-            text="Ready to clip.", font_size='14sp', color=get_color_from_hex('#aaaaaa'),
-            size_hint_y=None, height=60, halign='center', valign='middle'
-        )
-        self.status_label.bind(width=lambda s, w: s.setter('text_size')(s, (w, None)))
-        self.add_widget(self.status_label)
-        self.add_widget(Widget())
-
     def get_ffmpeg_binary(self):
-        # Bypass Android execution blocks by locating the disguised library installed by the OS
+        # Grabs the disguised FFmpeg library built by GitHub Actions
         home_dir = os.environ.get('HOME', '')
         lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
         ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
-        
         if os.path.exists(ffmpeg_path):
             return ffmpeg_path
         return None
 
-    def start_clipping_thread(self, instance):
-        url = self.url_input.text.strip()
+    def start_clipping_thread(self):
+        url = self.ids.url_input.text.strip()
         
         try:
-            start_sec = int(self.start_m.text) * 60 + int(self.start_s.text)
-            end_sec = int(self.end_m.text) * 60 + int(self.end_s.text)
+            start_sec = int(self.ids.start_m.text) * 60 + int(self.ids.start_s.text)
+            end_sec = int(self.ids.end_m.text) * 60 + int(self.ids.end_s.text)
         except ValueError:
-            self.status_label.text = "Error: Use numbers for time."
+            self.ids.status_label.text = "Error: Use numbers for time."
             return
 
         if not url:
-            self.status_label.text = "Error: Please provide a YouTube link."
+            self.ids.status_label.text = "Error: Please provide a YouTube link."
             return
         if start_sec >= end_sec:
-            self.status_label.text = "Error: End time must be after Start time."
+            self.ids.status_label.text = "Error: End time must be after Start time."
             return
 
-        self.clip_btn.disabled = True
-        self.status_label.text = "Extracting clip..."
+        self.ids.clip_btn.disabled = True
+        self.ids.status_label.text = "Extracting clip..."
         
-        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, self.ratio_spinner.text), daemon=True).start()
+        ratio = self.ids.ratio_spinner.text
+        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio), daemon=True).start()
 
     def process_clip(self, url, start_sec, end_sec, ratio):
         ffmpeg_path = self.get_ffmpeg_binary()
@@ -143,7 +238,6 @@ class ClipperLayout(BoxLayout):
             'logger': YTDLLogger(),
         }
 
-        # Point yt-dlp to the authorized system executable
         if ffmpeg_path and os.path.exists(ffmpeg_path):
             ydl_opts['ffmpeg_location'] = ffmpeg_path
 
@@ -152,10 +246,8 @@ class ClipperLayout(BoxLayout):
                 'ffmpeg': ['-vf', 'crop=ih*(9/16):ih']
             }
 
-        old_stderr = sys.stderr
-        old_stdout = sys.stdout
-        sys.stderr = NullWriter()
-        sys.stdout = NullWriter()
+        old_stderr, old_stdout = sys.stderr, sys.stdout
+        sys.stderr, sys.stdout = NullWriter(), NullWriter()
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -164,13 +256,12 @@ class ClipperLayout(BoxLayout):
         except Exception as err:
             self.update_status(f"Error: {str(err)[:50]}")
         finally:
-            sys.stderr = old_stderr
-            sys.stdout = old_stdout
+            sys.stderr, sys.stdout = old_stderr, old_stdout
 
     @mainthread
     def update_status(self, message):
-        self.status_label.text = message
-        self.clip_btn.disabled = False
+        self.ids.status_label.text = message
+        self.ids.clip_btn.disabled = False
 
 class YTClipperProApp(App):
     def build(self):
