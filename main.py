@@ -8,18 +8,17 @@ from kivy.clock import mainthread
 from kivy.core.window import Window
 import yt_dlp
 
-# Set base background to a very deep grey/blue
 Window.clearcolor = (0.07, 0.07, 0.09, 1)
 
-# 1. THE UI DESIGN (KV Language)
-# This handles all the rounded corners, colors, and precise spacing
 KV = '''
 <SmoothInput@TextInput>:
     background_color: 0, 0, 0, 0
     cursor_color: 1, 1, 1, 1
     foreground_color: 1, 1, 1, 1
+    hint_text_color: 0.6, 0.6, 0.6, 1
     font_size: '16sp'
-    padding: [15, (self.height - self.line_height) / 2]
+    multiline: False
+    padding: ['15dp', '14dp']
     canvas.before:
         Color:
             rgba: 0.15, 0.15, 0.18, 1
@@ -45,7 +44,6 @@ KV = '''
     padding: '25dp', '60dp', '25dp', '25dp'
     spacing: '25dp'
 
-    # App Title
     Label:
         text: '[b][color=#e50914]YT[/color] Clipper Pro[/b]'
         markup: True
@@ -53,7 +51,6 @@ KV = '''
         size_hint_y: None
         height: '60dp'
 
-    # Floating Card Container for Inputs
     BoxLayout:
         orientation: 'vertical'
         size_hint_y: None
@@ -68,21 +65,18 @@ KV = '''
                 size: self.size
                 radius: [15,]
 
-        # URL Input
         SmoothInput:
             id: url_input
             hint_text: 'Paste YouTube link here...'
             size_hint_y: None
             height: '50dp'
 
-        # Time Row
         BoxLayout:
             orientation: 'horizontal'
             size_hint_y: None
             height: '50dp'
             spacing: '15dp'
             
-            # Start Container
             BoxLayout:
                 spacing: '5dp'
                 Label:
@@ -96,6 +90,7 @@ KV = '''
                     text: '00'
                     input_filter: 'int'
                     halign: 'center'
+                    padding: ['0dp', '14dp']
                 Label:
                     text: ':'
                     bold: True
@@ -107,8 +102,8 @@ KV = '''
                     text: '00'
                     input_filter: 'int'
                     halign: 'center'
+                    padding: ['0dp', '14dp']
 
-            # End Container
             BoxLayout:
                 spacing: '5dp'
                 Label:
@@ -122,6 +117,7 @@ KV = '''
                     text: '00'
                     input_filter: 'int'
                     halign: 'center'
+                    padding: ['0dp', '14dp']
                 Label:
                     text: ':'
                     bold: True
@@ -133,8 +129,8 @@ KV = '''
                     text: '15'
                     input_filter: 'int'
                     halign: 'center'
+                    padding: ['0dp', '14dp']
 
-        # Format Spinner
         Spinner:
             id: ratio_spinner
             text: '16:9 Standard HD'
@@ -147,7 +143,6 @@ KV = '''
             font_size: '15sp'
             bold: True
 
-    # Action Button
     SmoothButton:
         id: clip_btn
         text: 'Generate & Save Clip'
@@ -157,7 +152,6 @@ KV = '''
         height: '65dp'
         on_press: root.start_clipping_thread()
 
-    # Status Message
     Label:
         id: status_label
         text: 'Ready to clip.'
@@ -169,11 +163,9 @@ KV = '''
         valign: 'middle'
         text_size: self.size
 
-    # Pushes everything to the top
     Widget: 
 '''
 
-# 2. APP LOGIC
 Builder.load_string(KV)
 
 class YTDLLogger:
@@ -188,7 +180,6 @@ class NullWriter:
 
 class ClipperLayout(BoxLayout):
     def get_ffmpeg_binary(self):
-        # Grabs the disguised FFmpeg library built by GitHub Actions
         home_dir = os.environ.get('HOME', '')
         lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
         ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
