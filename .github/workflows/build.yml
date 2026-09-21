@@ -24,6 +24,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Bundle FFmpeg Engine
+        run: |
+          mkdir -p libs/arm64-v8a
+          wget -O libs/arm64-v8a/libffmpeg.so https://github.com/Khang-NT/ffmpeg-binary-android/releases/download/v4.4/ffmpeg-aarch64
+
+    
       - name: Install System Dependencies
         run: |
           sudo apt-get update
