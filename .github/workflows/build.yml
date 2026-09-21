@@ -26,7 +26,7 @@ jobs:
       - name: Install Python Buildozer
         run: |
           pip install --upgrade pip
-          pip install buildozer cython virtualenv
+          pip install buildozer "cython<3.0" virtualenv
 
       - name: Compile APK
         run: yes | buildozer android debug
