@@ -31,13 +31,21 @@ jobs:
 
       - name: Bundle FFmpeg Engine
         run: |
+          # Create folders for both architectures
           mkdir -p libs/arm64-v8a
-          # Download the engine from a highly stable, active repository
-          curl -L -o ffmpeg.zip "https://github.com/Tyrrrz/FFmpegBin/releases/latest/download/ffmpeg-android-arm64.zip"
-          # Extract only the ffmpeg executable and disguise it as an Android library
-          unzip ffmpeg.zip ffmpeg
-          mv ffmpeg libs/arm64-v8a/libffmpeg.so
+          mkdir -p libs/armeabi-v7a
+          
+          # Download and disguise the 64-bit engine
+          curl -L -o ffmpeg64.zip "https://github.com/Tyrrrz/FFmpegBin/releases/latest/download/ffmpeg-android-arm64.zip"
+          unzip -o ffmpeg64.zip -d ext64
+          mv ext64/ffmpeg libs/arm64-v8a/libffmpeg.so
           chmod +x libs/arm64-v8a/libffmpeg.so
+          
+          # Download and disguise the 32-bit engine
+          curl -L -o ffmpeg32.zip "https://github.com/Tyrrrz/FFmpegBin/releases/latest/download/ffmpeg-android-arm.zip"
+          unzip -o ffmpeg32.zip -d ext32
+          mv ext32/ffmpeg libs/armeabi-v7a/libffmpeg.so
+          chmod +x libs/armeabi-v7a/libffmpeg.so
 
       - name: Install Python Buildozer
         run: |
