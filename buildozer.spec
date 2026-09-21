@@ -17,6 +17,7 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE,READ_EXTERNAL_STORAGE,WRITE_
 android.api = 33
 android.minapi = 21
 android.archs = arm64-v8a
+android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
 
 [buildozer]
 log_level = 2
