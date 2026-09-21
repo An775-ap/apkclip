@@ -16,9 +16,8 @@ fullscreen = 0
 android.permissions = INTERNET,ACCESS_NETWORK_STATE,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
 android.api = 33
 android.minapi = 21
-android.archs = arm64-v8a, armeabi-v7a
+android.archs = arm64-v8a
 android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
-android.add_libs_armeabi_v7a = libs/armeabi-v7a/*.so
 
 [buildozer]
 log_level = 2
