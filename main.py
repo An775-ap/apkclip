@@ -1,6 +1,7 @@
 import os
 import sys
 import threading
+import urllib.request
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
@@ -13,10 +14,8 @@ from kivy.clock import mainthread
 from kivy.utils import get_color_from_hex
 import yt_dlp
 
-# Modern dark theme background
 Window.clearcolor = get_color_from_hex('#121212')
 
-# 1. FIX: Create a silent logger to prevent yt-dlp from crashing the Kivy mobile app.
 class YTDLLogger:
     def debug(self, msg): pass
     def warning(self, msg): pass
@@ -27,139 +26,131 @@ class NullWriter:
     def flush(self): pass
     def isatty(self): return False
 
-def parse_time_to_seconds(time_str):
-    try:
-        parts = [int(p) for p in time_str.strip().split(':')]
-        if len(parts) == 2:
-            return parts[0] * 60 + parts[1]
-        elif len(parts) == 3:
-            return parts[0] * 3600 + parts[1] * 60 + parts[2]
-        return int(time_str)
-    except Exception:
-        return None
-
 class ClipperLayout(BoxLayout):
     def __init__(self, **kwargs):
-        # 2. FIX: Heavy top padding (80) pushes UI below the phone's status bar.
-        # Spacing (20) separates the elements so they aren't squished together.
-        super().__init__(orientation='vertical', padding=[40, 80, 40, 40], spacing=20, **kwargs)
+        super().__init__(orientation='vertical', padding=[40, 80, 40, 40], spacing=25, **kwargs)
 
-        # App Header
         self.add_widget(Label(
             text="[b][color=#e50914]YT[/color] Clipper Pro[/b]", 
-            markup=True, 
-            font_size='28sp', 
-            size_hint_y=None, 
-            height=60
+            markup=True, font_size='32sp', size_hint_y=None, height=70
         ))
 
-        # URL Input
+        # URL Input Row
+        self.add_widget(Label(text="YouTube URL:", font_size='16sp', bold=True, size_hint_y=None, height=30, halign='left', color=get_color_from_hex('#ffffff')))
         self.url_input = TextInput(
-            hint_text="Paste YouTube URL here", 
-            multiline=False, 
-            size_hint_y=None, 
-            height=60, # Taller for easier tapping
-            font_size='16sp',
-            padding_y=[17, 0],
-            background_color=get_color_from_hex('#ffffff')
+            hint_text="Paste link here...", multiline=False, size_hint_y=None, height=55,
+            font_size='16sp', padding_y=[15, 0], background_color=get_color_from_hex('#ffffff')
         )
         self.add_widget(self.url_input)
 
-        # Timestamps Row
-        time_box = BoxLayout(orientation='horizontal', spacing=15, size_hint_y=None, height=60)
-        self.start_input = TextInput(
-            hint_text="Start (00:00)", 
-            multiline=False,
-            font_size='16sp',
-            padding_y=[17, 0],
-            background_color=get_color_from_hex('#ffffff')
-        )
-        self.end_input = TextInput(
-            hint_text="End (00:15)", 
-            multiline=False,
-            font_size='16sp',
-            padding_y=[17, 0],
-            background_color=get_color_from_hex('#ffffff')
-        )
-        time_box.add_widget(self.start_input)
-        time_box.add_widget(self.end_input)
-        self.add_widget(time_box)
+        # Time Input Row (Split Minutes and Seconds for default colon)
+        time_container = BoxLayout(orientation='vertical', spacing=10, size_hint_y=None, height=130)
+        
+        # Start Time
+        start_row = BoxLayout(orientation='horizontal', spacing=5)
+        start_row.add_widget(Label(text="Start Time:", bold=True, size_hint_x=0.4))
+        self.start_m = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
+        start_row.add_widget(self.start_m)
+        start_row.add_widget(Label(text=":", bold=True, font_size='24sp', size_hint_x=0.1))
+        self.start_s = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
+        start_row.add_widget(self.start_s)
+        time_container.add_widget(start_row)
 
-        # Aspect Ratio Selector
+        # End Time
+        end_row = BoxLayout(orientation='horizontal', spacing=5)
+        end_row.add_widget(Label(text="End Time:", bold=True, size_hint_x=0.4))
+        self.end_m = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
+        end_row.add_widget(self.end_m)
+        end_row.add_widget(Label(text=":", bold=True, font_size='24sp', size_hint_x=0.1))
+        self.end_s = TextInput(text="15", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
+        end_row.add_widget(self.end_s)
+        time_container.add_widget(end_row)
+        
+        self.add_widget(time_container)
+
+        # Format Options
         self.ratio_spinner = Spinner(
-            text="16:9 Standard",
-            values=("16:9 Standard", "9:16 Shorts / Reels"),
-            size_hint_y=None, 
-            height=60,
-            font_size='16sp',
-            background_color=get_color_from_hex('#333333'),
-            color=get_color_from_hex('#ffffff')
+            text="16:9 Standard HD",
+            values=("16:9 Standard HD", "9:16 Shorts / Reels"),
+            size_hint_y=None, height=60, font_size='16sp',
+            background_color=get_color_from_hex('#333333'), color=get_color_from_hex('#ffffff')
         )
         self.add_widget(self.ratio_spinner)
 
-        # Action Button
+        # Download Button
         self.clip_btn = Button(
             text="Generate & Save Clip", 
-            background_color=get_color_from_hex('#e50914'), 
-            color=get_color_from_hex('#ffffff'),
-            font_size='18sp',
-            bold=True,
-            size_hint_y=None, 
-            height=65,
-            background_normal='' # Flattens the color for a modern look
+            background_color=get_color_from_hex('#e50914'), color=get_color_from_hex('#ffffff'),
+            font_size='18sp', bold=True, size_hint_y=None, height=65, background_normal=''
         )
         self.clip_btn.bind(on_press=self.start_clipping_thread)
         self.add_widget(self.clip_btn)
 
-        # Status Output
+        # Status Label
         self.status_label = Label(
-            text="Ready to clip", 
-            font_size='15sp', 
-            color=get_color_from_hex('#aaaaaa'),
-            size_hint_y=None,
-            height=80,
-            halign='center',
-            valign='middle'
+            text="Ready to clip.", font_size='14sp', color=get_color_from_hex('#aaaaaa'),
+            size_hint_y=None, height=60, halign='center', valign='middle'
         )
         self.status_label.bind(width=lambda s, w: s.setter('text_size')(s, (w, None)))
         self.add_widget(self.status_label)
 
-        # 3. FIX: Add an invisible spacer at the very bottom.
-        # This consumes the empty black void space and pushes your UI beautifully to the top.
         self.add_widget(Widget())
+
+    def get_ffmpeg_binary(self):
+        """Downloads a static Android FFmpeg binary on first run to enable 1080p and 9:16 cropping."""
+        try:
+            from android.storage import app_storage_path
+            storage_dir = app_storage_path()
+        except ImportError:
+            storage_dir = os.path.dirname(os.path.abspath(__file__))
+
+        ffmpeg_bin = os.path.join(storage_dir, 'ffmpeg')
+
+        if not os.path.exists(ffmpeg_bin):
+            self.update_status("Installing HD Video Engine (12MB)... Please wait.")
+            # Highly reliable static arm64 FFmpeg build specifically for Android
+            url = "https://github.com/Khang-NT/ffmpeg-binary-android/releases/download/v4.4/ffmpeg-aarch64"
+            try:
+                urllib.request.urlretrieve(url, ffmpeg_bin)
+                os.chmod(ffmpeg_bin, 0o755) # Make it executable on Android
+            except Exception as e:
+                self.update_status(f"Engine download failed: {str(e)[:40]}")
+                return None
+        return ffmpeg_bin
 
     def start_clipping_thread(self, instance):
         url = self.url_input.text.strip()
-        start_raw = self.start_input.text.strip()
-        end_raw = self.end_input.text.strip()
-        ratio = self.ratio_spinner.text
-
-        start_sec = parse_time_to_seconds(start_raw)
-        end_sec = parse_time_to_seconds(end_raw)
+        
+        # Convert split boxes to seconds
+        try:
+            start_sec = int(self.start_m.text) * 60 + int(self.start_s.text)
+            end_sec = int(self.end_m.text) * 60 + int(self.end_s.text)
+        except ValueError:
+            self.status_label.text = "Error: Use numbers for time."
+            return
 
         if not url:
             self.status_label.text = "Error: Please provide a YouTube link."
             return
-        if start_sec is None or end_sec is None or start_sec >= end_sec:
-            self.status_label.text = "Error: Invalid start or end timestamp."
+        if start_sec >= end_sec:
+            self.status_label.text = "Error: End time must be after Start time."
             return
 
         self.clip_btn.disabled = True
-        self.status_label.text = "Starting download..."
+        self.status_label.text = "Initializing HD Engine..."
         
-        threading.Thread(
-            target=self.process_clip, 
-            args=(url, start_sec, end_sec, ratio), 
-            daemon=True
-        ).start()
+        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, self.ratio_spinner.text), daemon=True).start()
 
     def process_clip(self, url, start_sec, end_sec, ratio):
+        ffmpeg_path = self.get_ffmpeg_binary()
+
         download_dir = "/storage/emulated/0/Download"
         if not os.path.exists(download_dir):
             download_dir = os.path.expanduser("~")
 
         output_path = os.path.join(download_dir, "clip_%(id)s.%(ext)s")
 
+        # Prioritize 1080p and merge with high quality audio using FFmpeg
         ydl_opts = {
             'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
             'outtmpl': output_path,
@@ -167,30 +158,32 @@ class ClipperLayout(BoxLayout):
             'force_keyframes_at_cuts': True,
             'quiet': True,
             'noprogress': True,
-            'logger': YTDLLogger(), # Use our silent logger
+            'logger': YTDLLogger(),
         }
 
-        # Apply crop filter if Shorts format is selected
+        # Inject the Android FFmpeg binary into yt-dlp
+        if ffmpeg_path and os.path.exists(ffmpeg_path):
+            ydl_opts['ffmpeg_location'] = ffmpeg_path
+
+        # Apply FFmpeg postprocessor if 9:16 is selected
         if "9:16" in ratio:
             ydl_opts['postprocessor_args'] = {
                 'ffmpeg': ['-vf', 'crop=ih*(9/16):ih']
             }
 
-        # FIX: Temporarily redirect system stdout/stderr so yt-dlp doesn't crash the logger
         old_stderr = sys.stderr
         old_stdout = sys.stdout
         sys.stderr = NullWriter()
         sys.stdout = NullWriter()
 
         try:
-            self.update_status("Downloading and processing...")
+            self.update_status("Downloading HD video and processing crop...")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             self.update_status("Success! Clip saved to your Downloads folder.")
         except Exception as err:
-            self.update_status(f"Error: {str(err)}")
+            self.update_status(f"Error: {str(err)[:50]}")
         finally:
-            # Restore normal logging after download finishes
             sys.stderr = old_stderr
             sys.stdout = old_stdout
 
