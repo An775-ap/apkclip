@@ -7,7 +7,7 @@ source.include_exts = py,png,jpg,kv,atlas
 version = 1.0
 
 # Dependencies needed for yt-dlp, video handling, and network requests
-requirements = python3,kivy,yt-dlp,certifi,urllib3,requests
+requirements = python3,kivy,yt-dlp,certifi,urllib3,requests,ffmpeg
 
 orientation = portrait
 fullscreen = 0
