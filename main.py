@@ -1,7 +1,6 @@
 import os
 import sys
 import threading
-import urllib.request
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
@@ -35,7 +34,7 @@ class ClipperLayout(BoxLayout):
             markup=True, font_size='32sp', size_hint_y=None, height=70
         ))
 
-        # URL Input Row
+        # URL Input
         self.add_widget(Label(text="YouTube URL:", font_size='16sp', bold=True, size_hint_y=None, height=30, halign='left', color=get_color_from_hex('#ffffff')))
         self.url_input = TextInput(
             hint_text="Paste link here...", multiline=False, size_hint_y=None, height=55,
@@ -43,10 +42,9 @@ class ClipperLayout(BoxLayout):
         )
         self.add_widget(self.url_input)
 
-        # Time Input Row (Split Minutes and Seconds for default colon)
+        # Time Input Row 
         time_container = BoxLayout(orientation='vertical', spacing=10, size_hint_y=None, height=130)
         
-        # Start Time
         start_row = BoxLayout(orientation='horizontal', spacing=5)
         start_row.add_widget(Label(text="Start Time:", bold=True, size_hint_x=0.4))
         self.start_m = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
@@ -56,7 +54,6 @@ class ClipperLayout(BoxLayout):
         start_row.add_widget(self.start_s)
         time_container.add_widget(start_row)
 
-        # End Time
         end_row = BoxLayout(orientation='horizontal', spacing=5)
         end_row.add_widget(Label(text="End Time:", bold=True, size_hint_x=0.4))
         self.end_m = TextInput(text="00", input_filter='int', halign='center', multiline=False, size_hint_x=0.25, font_size='18sp')
@@ -93,35 +90,21 @@ class ClipperLayout(BoxLayout):
         )
         self.status_label.bind(width=lambda s, w: s.setter('text_size')(s, (w, None)))
         self.add_widget(self.status_label)
-
         self.add_widget(Widget())
 
     def get_ffmpeg_binary(self):
-        """Downloads a static Android FFmpeg binary on first run to enable 1080p and 9:16 cropping."""
-        try:
-            from android.storage import app_storage_path
-            storage_dir = app_storage_path()
-        except ImportError:
-            storage_dir = os.path.dirname(os.path.abspath(__file__))
-
-        ffmpeg_bin = os.path.join(storage_dir, 'ffmpeg')
-
-        if not os.path.exists(ffmpeg_bin):
-            self.update_status("Installing HD Video Engine (12MB)... Please wait.")
-            # Highly reliable static arm64 FFmpeg build specifically for Android
-            url = "https://github.com/Khang-NT/ffmpeg-binary-android/releases/download/v4.4/ffmpeg-aarch64"
-            try:
-                urllib.request.urlretrieve(url, ffmpeg_bin)
-                os.chmod(ffmpeg_bin, 0o755) # Make it executable on Android
-            except Exception as e:
-                self.update_status(f"Engine download failed: {str(e)[:40]}")
-                return None
-        return ffmpeg_bin
+        # Bypass Android execution blocks by locating the disguised library installed by the OS
+        home_dir = os.environ.get('HOME', '')
+        lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
+        ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
+        
+        if os.path.exists(ffmpeg_path):
+            return ffmpeg_path
+        return None
 
     def start_clipping_thread(self, instance):
         url = self.url_input.text.strip()
         
-        # Convert split boxes to seconds
         try:
             start_sec = int(self.start_m.text) * 60 + int(self.start_s.text)
             end_sec = int(self.end_m.text) * 60 + int(self.end_s.text)
@@ -137,7 +120,7 @@ class ClipperLayout(BoxLayout):
             return
 
         self.clip_btn.disabled = True
-        self.status_label.text = "Initializing HD Engine..."
+        self.status_label.text = "Extracting clip..."
         
         threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, self.ratio_spinner.text), daemon=True).start()
 
@@ -150,7 +133,6 @@ class ClipperLayout(BoxLayout):
 
         output_path = os.path.join(download_dir, "clip_%(id)s.%(ext)s")
 
-        # Prioritize 1080p and merge with high quality audio using FFmpeg
         ydl_opts = {
             'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
             'outtmpl': output_path,
@@ -161,11 +143,10 @@ class ClipperLayout(BoxLayout):
             'logger': YTDLLogger(),
         }
 
-        # Inject the Android FFmpeg binary into yt-dlp
+        # Point yt-dlp to the authorized system executable
         if ffmpeg_path and os.path.exists(ffmpeg_path):
             ydl_opts['ffmpeg_location'] = ffmpeg_path
 
-        # Apply FFmpeg postprocessor if 9:16 is selected
         if "9:16" in ratio:
             ydl_opts['postprocessor_args'] = {
                 'ffmpeg': ['-vf', 'crop=ih*(9/16):ih']
@@ -177,7 +158,6 @@ class ClipperLayout(BoxLayout):
         sys.stdout = NullWriter()
 
         try:
-            self.update_status("Downloading HD video and processing crop...")
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
             self.update_status("Success! Clip saved to your Downloads folder.")
