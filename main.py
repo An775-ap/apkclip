@@ -1,6 +1,7 @@
 import os
 import sys
 import threading
+import shutil
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
@@ -11,7 +12,6 @@ import yt_dlp
 Window.clearcolor = (0.07, 0.07, 0.09, 1)
 
 KV = '''
-# Pure white background, pure black text. MIUI cannot override this.
 <CleanInput@TextInput>:
     background_color: 1, 1, 1, 1
     foreground_color: 0, 0, 0, 1
@@ -169,24 +169,40 @@ class NullWriter:
 
 class ClipperLayout(BoxLayout):
     def get_ffmpeg_binary(self):
-        # Method 1: Use Android's Java Bridge to get the exact authorized system path
+        native_lib = None
+        
+        # 1. Locate the hidden system library
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
             lib_dir = PythonActivity.mActivity.getApplicationInfo().nativeLibraryDir
             ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
             if os.path.exists(ffmpeg_path):
-                return ffmpeg_path
+                native_lib = ffmpeg_path
         except Exception:
             pass
 
-        # Method 2: Fallback for older Android versions
-        home_dir = os.environ.get('HOME', '')
-        lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
-        ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
-        if os.path.exists(ffmpeg_path):
-            return ffmpeg_path
+        if not native_lib:
+            home_dir = os.environ.get('HOME', '')
+            lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
+            ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
+            if os.path.exists(ffmpeg_path):
+                native_lib = ffmpeg_path
 
+        # 2. Copy it to writable storage and force executable permissions
+        if native_lib:
+            files_dir = os.environ.get('HOME', '')
+            executable_ffmpeg = os.path.join(files_dir, 'ffmpeg_exec')
+            
+            try:
+                # Only copy if it doesn't already exist to save processing time
+                if not os.path.exists(executable_ffmpeg) or os.path.getsize(executable_ffmpeg) != os.path.getsize(native_lib):
+                    shutil.copy2(native_lib, executable_ffmpeg)
+                    os.chmod(executable_ffmpeg, 0o777)
+                return executable_ffmpeg
+            except Exception:
+                return native_lib
+                
         return None
 
     def start_clipping_thread(self):
@@ -206,14 +222,13 @@ class ClipperLayout(BoxLayout):
             self.ids.status_label.text = "Error: End time must be after Start time."
             return
 
-        # Explicitly check for the Engine before trying to download
         ffmpeg_path = self.get_ffmpeg_binary()
         if not ffmpeg_path:
             self.ids.status_label.text = "Error: FFmpeg engine missing. Check GitHub Actions."
             return
 
         self.ids.clip_btn.disabled = True
-        self.ids.status_label.text = "Engine found! Extracting clip..."
+        self.ids.status_label.text = "Engine authorized! Extracting clip..."
         
         ratio = self.ids.ratio_spinner.text
         threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio, ffmpeg_path), daemon=True).start()
