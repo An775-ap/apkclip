@@ -13,8 +13,10 @@ orientation = portrait
 fullscreen = 0
 
 # Storage and network permissions
-android.permissions = INTERNET,ACCESS_NETWORK_STATE,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
-android.api = 33
+# (list) Permissions
+android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
+# (int) Target Android API, should be as high as possible.
+android.api = 28
 android.minapi = 21
 android.archs = arm64-v8a
 android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
