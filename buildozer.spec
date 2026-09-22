@@ -14,6 +14,8 @@ fullscreen = 0
 
 # Storage and network permissions
 # (list) Permissions
+# (list) Gradle dependencies to add
+android.gradle_dependencies = com.arthenica:ffmpeg-kit-full:4.5.1-1
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 # (int) Target Android API, should be as high as possible.
 android.api = 33
