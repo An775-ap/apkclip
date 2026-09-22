@@ -12,23 +12,25 @@ Window.clearcolor = (0.07, 0.07, 0.09, 1)
 
 KV = '''
 <SmoothInput@TextInput>:
-    background_color: 0, 0, 0, 0
-    cursor_color: 1, 1, 1, 1
-    foreground_color: 1, 1, 1, 1
-    hint_text_color: 0.6, 0.6, 0.6, 1
+    background_color: (0, 0, 0, 0)
+    background_normal: ''
+    background_active: ''
+    cursor_color: (1, 1, 1, 1)
+    foreground_color: (1, 1, 1, 1)
+    hint_text_color: (0.6, 0.6, 0.6, 1)
     font_size: '16sp'
     multiline: False
-    padding: ['15dp', '14dp']
+    padding: ['15dp', (self.height - self.line_height) / 2]
     canvas.before:
         Color:
-            rgba: 0.15, 0.15, 0.18, 1
+            rgba: (0.15, 0.15, 0.18, 1)
         RoundedRectangle:
             pos: self.pos
             size: self.size
             radius: [10,]
 
 <SmoothButton@Button>:
-    background_color: 0, 0, 0, 0
+    background_color: (0, 0, 0, 0)
     background_normal: ''
     background_down: ''
     canvas.before:
@@ -59,7 +61,7 @@ KV = '''
         spacing: '15dp'
         canvas.before:
             Color:
-                rgba: 0.11, 0.11, 0.14, 1
+                rgba: (0.11, 0.11, 0.14, 1)
             RoundedRectangle:
                 pos: self.pos
                 size: self.size
@@ -81,7 +83,7 @@ KV = '''
                 spacing: '5dp'
                 Label:
                     text: 'Start:'
-                    color: 0.7, 0.7, 0.7, 1
+                    color: (0.7, 0.7, 0.7, 1)
                     bold: True
                     size_hint_x: None
                     width: '45dp'
@@ -90,7 +92,7 @@ KV = '''
                     text: '00'
                     input_filter: 'int'
                     halign: 'center'
-                    padding: ['0dp', '14dp']
+                    padding: ['0dp', (self.height - self.line_height) / 2]
                 Label:
                     text: ':'
                     bold: True
@@ -102,13 +104,13 @@ KV = '''
                     text: '00'
                     input_filter: 'int'
                     halign: 'center'
-                    padding: ['0dp', '14dp']
+                    padding: ['0dp', (self.height - self.line_height) / 2]
 
             BoxLayout:
                 spacing: '5dp'
                 Label:
                     text: 'End:'
-                    color: 0.7, 0.7, 0.7, 1
+                    color: (0.7, 0.7, 0.7, 1)
                     bold: True
                     size_hint_x: None
                     width: '40dp'
@@ -117,7 +119,7 @@ KV = '''
                     text: '00'
                     input_filter: 'int'
                     halign: 'center'
-                    padding: ['0dp', '14dp']
+                    padding: ['0dp', (self.height - self.line_height) / 2]
                 Label:
                     text: ':'
                     bold: True
@@ -129,7 +131,7 @@ KV = '''
                     text: '15'
                     input_filter: 'int'
                     halign: 'center'
-                    padding: ['0dp', '14dp']
+                    padding: ['0dp', (self.height - self.line_height) / 2]
 
         Spinner:
             id: ratio_spinner
@@ -138,8 +140,8 @@ KV = '''
             size_hint_y: None
             height: '50dp'
             background_normal: ''
-            background_color: 0.15, 0.15, 0.18, 1
-            color: 1, 1, 1, 1
+            background_color: (0.15, 0.15, 0.18, 1)
+            color: (1, 1, 1, 1)
             font_size: '15sp'
             bold: True
 
@@ -155,7 +157,7 @@ KV = '''
     Label:
         id: status_label
         text: 'Ready to clip.'
-        color: 0.6, 0.6, 0.6, 1
+        color: (0.6, 0.6, 0.6, 1)
         font_size: '14sp'
         size_hint_y: None
         height: '40dp'
