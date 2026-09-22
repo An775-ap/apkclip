@@ -16,7 +16,7 @@ fullscreen = 0
 # (list) Permissions
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
 # (int) Target Android API, should be as high as possible.
-android.api = 28
+android.api = 33
 android.minapi = 21
 android.archs = arm64-v8a
 android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
