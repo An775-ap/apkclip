@@ -37,7 +37,7 @@ KV = '''
     spacing: '20dp'
 
     Label:
-        text: '[b][color=#e50914]YT[/color] Clipper Pro[/b]'
+        text: '[b][color=#e50914]YT[/color] Downloader Pro[/b]'
         markup: True
         font_size: '32sp'
         size_hint_y: None
@@ -46,7 +46,7 @@ KV = '''
     BoxLayout:
         orientation: 'vertical'
         size_hint_y: None
-        height: '240dp'
+        height: '140dp'
         padding: '20dp'
         spacing: '15dp'
         canvas.before:
@@ -63,66 +63,10 @@ KV = '''
             size_hint_y: None
             height: '50dp'
 
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint_y: None
-            height: '50dp'
-            spacing: '10dp'
-            
-            Label:
-                text: 'Start:'
-                bold: True
-                size_hint_x: None
-                width: '45dp'
-            CleanInput:
-                id: start_m
-                text: '00'
-                input_filter: 'int'
-                halign: 'center'
-            Label:
-                text: ':'
-                bold: True
-                font_size: '20sp'
-                size_hint_x: None
-                width: '10dp'
-            CleanInput:
-                id: start_s
-                text: '00'
-                input_filter: 'int'
-                halign: 'center'
-
-        BoxLayout:
-            orientation: 'horizontal'
-            size_hint_y: None
-            height: '50dp'
-            spacing: '10dp'
-            
-            Label:
-                text: 'End:'
-                bold: True
-                size_hint_x: None
-                width: '40dp'
-            CleanInput:
-                id: end_m
-                text: '00'
-                input_filter: 'int'
-                halign: 'center'
-            Label:
-                text: ':'
-                bold: True
-                font_size: '20sp'
-                size_hint_x: None
-                width: '10dp'
-            CleanInput:
-                id: end_s
-                text: '15'
-                input_filter: 'int'
-                halign: 'center'
-
         Spinner:
-            id: ratio_spinner
-            text: '16:9 Standard HD'
-            values: ('16:9 Standard HD', '9:16 Shorts / Reels')
+            id: format_spinner
+            text: 'High Quality (MP4)'
+            values: ('High Quality (MP4)', 'Audio Only (MP3)')
             size_hint_y: None
             height: '45dp'
             background_normal: ''
@@ -132,19 +76,19 @@ KV = '''
             bold: True
 
     SmoothButton:
-        id: clip_btn
-        text: 'Generate & Save Clip'
+        id: dl_btn
+        text: 'Download Full Video'
         font_size: '18sp'
         bold: True
         size_hint_y: None
         height: '60dp'
-        on_press: root.start_clipping_thread()
+        on_press: root.start_download_thread()
 
     Label:
         id: status_label
-        text: 'Ready to clip.'
+        text: 'Ready.'
         color: 0.8, 0.8, 0.8, 1
-        font_size: '13sp'
+        font_size: '14sp'
         size_hint_y: None
         height: '60dp'
         halign: 'center'
@@ -156,84 +100,70 @@ KV = '''
 
 Builder.load_string(KV)
 
+class YTDLLogger:
+    def debug(self, msg): pass
+    def warning(self, msg): pass
+    def error(self, msg): pass
+
+class NullWriter:
+    def write(self, s): pass
+    def flush(self): pass
+    def isatty(self): return False
+
 class ClipperLayout(BoxLayout):
-    def start_clipping_thread(self):
+    def start_download_thread(self):
         url = self.ids.url_input.text.strip()
         
-        try:
-            start_sec = int(self.ids.start_m.text) * 60 + int(self.ids.start_s.text)
-            end_sec = int(self.ids.end_m.text) * 60 + int(self.ids.end_s.text)
-        except ValueError:
-            self.ids.status_label.text = "Error: Use numbers for time."
-            return
-
         if not url:
             self.ids.status_label.text = "Error: Please provide a YouTube link."
             return
-        if start_sec >= end_sec:
-            self.ids.status_label.text = "Error: End time must be after Start time."
-            return
 
-        self.ids.clip_btn.disabled = True
-        self.ids.status_label.text = "Connecting to YouTube..."
+        self.ids.dl_btn.disabled = True
+        self.ids.status_label.text = "Starting download..."
         
-        ratio = self.ids.ratio_spinner.text
-        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio), daemon=True).start()
+        mode = self.ids.format_spinner.text
+        threading.Thread(target=self.process_download, args=(url, mode), daemon=True).start()
 
-    def process_clip(self, url, start_sec, end_sec, ratio):
+    def process_download(self, url, mode):
         download_dir = "/storage/emulated/0/Download"
         if not os.path.exists(download_dir):
             download_dir = os.path.expanduser("~")
 
-        # 1. Use yt-dlp quietly just to extract the raw video stream URL
-        ydl_opts = {'format': 'best[ext=mp4]', 'quiet': True, 'noprogress': True}
+        output_path = os.path.join(download_dir, "%(title)s.%(ext)s")
+
+        if "Audio" in mode:
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'outtmpl': output_path,
+                'quiet': True,
+                'noprogress': True,
+                'logger': YTDLLogger(),
+            }
+        else:
+            ydl_opts = {
+                'format': 'best[ext=mp4]/best',
+                'outtmpl': output_path,
+                'quiet': True,
+                'noprogress': True,
+                'logger': YTDLLogger(),
+            }
+
+        old_stderr, old_stdout = sys.stderr, sys.stdout
+        sys.stderr, sys.stdout = NullWriter(), NullWriter()
+
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                stream_url = info.get('url')
-                video_id = info.get('id', 'video')
-        except Exception as e:
-            self.update_status(f"Extraction Error: {str(e)[:50]}")
-            return
-
-        if not stream_url:
-            self.update_status("Error: Could not extract video stream.")
-            return
-
-        output_path = os.path.join(download_dir, f"clip_{video_id}.mp4")
-        if os.path.exists(output_path):
-            os.remove(output_path)
-
-        duration = end_sec - start_sec
-        self.update_status("Processing clip via Java native engine...")
-
-        # 2. Build the command string
-        if "9:16" in ratio:
-            # Re-encode specifically to crop the center for Reels/Shorts
-            cmd = f"-ss {start_sec} -i \"{stream_url}\" -t {duration} -vf \"crop=ih*(9/16):ih\" -c:v libx264 -preset ultrafast -c:a copy \"{output_path}\""
-        else:
-            # Fast copy for standard HD
-            cmd = f"-ss {start_sec} -i \"{stream_url}\" -t {duration} -c copy \"{output_path}\""
-
-        # 3. Execute directly through Android's Java memory using pyjnius
-        try:
-            from jnius import autoclass
-            FFmpegKit = autoclass('com.arthenica.ffmpegkit.FFmpegKit')
-            
-            session = FFmpegKit.execute(cmd)
-            return_code = session.getReturnCode().getValue()
-            
-            if return_code == 0:
-                self.update_status("Success! Clip saved to your Downloads folder.")
-            else:
-                self.update_status("Processing Error: Engine failed to compile video.")
-        except Exception as e:
-            self.update_status(f"Java Error: {str(e)[:50]}")
+                ydl.download([url])
+            self.update_status("Success! Saved to your Downloads folder.")
+        except Exception as err:
+            self.update_status(f"Error: {str(err)[:50]}")
+        finally:
+            sys.stderr, sys.stdout = old_stderr, old_stdout
 
     @mainthread
     def update_status(self, message):
         self.ids.status_label.text = message
-        self.ids.clip_btn.disabled = False
+        self.ids.dl_btn.disabled = False
 
 class YTClipperProApp(App):
     def build(self):
