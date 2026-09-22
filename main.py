@@ -8,27 +8,17 @@ from kivy.clock import mainthread
 from kivy.core.window import Window
 import yt_dlp
 
-# Deep grey/blue app background
 Window.clearcolor = (0.07, 0.07, 0.09, 1)
 
 KV = '''
-<SmoothInput@TextInput>:
-    background_color: 0, 0, 0, 0
-    background_normal: ''
-    background_active: ''
-    cursor_color: 0, 0, 0, 1
+# Pure white background, pure black text. MIUI cannot override this.
+<CleanInput@TextInput>:
+    background_color: 1, 1, 1, 1
     foreground_color: 0, 0, 0, 1
     hint_text_color: 0.5, 0.5, 0.5, 1
     font_size: '16sp'
     multiline: False
     padding: ['10dp', '14dp']
-    canvas.before:
-        Color:
-            rgba: 0.95, 0.95, 0.95, 1
-        RoundedRectangle:
-            pos: self.pos
-            size: self.size
-            radius: [8,]
 
 <SmoothButton@Button>:
     background_color: 0, 0, 0, 0
@@ -44,15 +34,15 @@ KV = '''
 
 <ClipperLayout>:
     orientation: 'vertical'
-    padding: '25dp', '60dp', '25dp', '25dp'
-    spacing: '25dp'
+    padding: '25dp', '40dp', '25dp', '25dp'
+    spacing: '20dp'
 
     Label:
         text: '[b][color=#e50914]YT[/color] Clipper Pro[/b]'
         markup: True
         font_size: '32sp'
         size_hint_y: None
-        height: '60dp'
+        height: '50dp'
 
     BoxLayout:
         orientation: 'vertical'
@@ -62,13 +52,13 @@ KV = '''
         spacing: '15dp'
         canvas.before:
             Color:
-                rgba: 0.11, 0.11, 0.14, 1
+                rgba: 0.15, 0.15, 0.18, 1
             RoundedRectangle:
                 pos: self.pos
                 size: self.size
                 radius: [15,]
 
-        SmoothInput:
+        CleanInput:
             id: url_input
             hint_text: 'Paste YouTube link here...'
             size_hint_y: None
@@ -78,72 +68,66 @@ KV = '''
             orientation: 'horizontal'
             size_hint_y: None
             height: '50dp'
-            spacing: '15dp'
+            spacing: '10dp'
             
-            BoxLayout:
-                spacing: '5dp'
-                Label:
-                    text: 'Start:'
-                    color: 0.8, 0.8, 0.8, 1
-                    bold: True
-                    size_hint_x: None
-                    width: '45dp'
-                SmoothInput:
-                    id: start_m
-                    text: '00'
-                    input_filter: 'int'
-                    halign: 'center'
-                    padding: ['0dp', '14dp']
-                Label:
-                    text: ':'
-                    bold: True
-                    font_size: '20sp'
-                    color: 1, 1, 1, 1
-                    size_hint_x: None
-                    width: '10dp'
-                SmoothInput:
-                    id: start_s
-                    text: '00'
-                    input_filter: 'int'
-                    halign: 'center'
-                    padding: ['0dp', '14dp']
+            Label:
+                text: 'Start:'
+                bold: True
+                size_hint_x: None
+                width: '45dp'
+            CleanInput:
+                id: start_m
+                text: '00'
+                input_filter: 'int'
+                halign: 'center'
+            Label:
+                text: ':'
+                bold: True
+                font_size: '20sp'
+                size_hint_x: None
+                width: '10dp'
+            CleanInput:
+                id: start_s
+                text: '00'
+                input_filter: 'int'
+                halign: 'center'
 
-            BoxLayout:
-                spacing: '5dp'
-                Label:
-                    text: 'End:'
-                    color: 0.8, 0.8, 0.8, 1
-                    bold: True
-                    size_hint_x: None
-                    width: '40dp'
-                SmoothInput:
-                    id: end_m
-                    text: '00'
-                    input_filter: 'int'
-                    halign: 'center'
-                    padding: ['0dp', '14dp']
-                Label:
-                    text: ':'
-                    bold: True
-                    font_size: '20sp'
-                    color: 1, 1, 1, 1
-                    size_hint_x: None
-                    width: '10dp'
-                SmoothInput:
-                    id: end_s
-                    text: '15'
-                    input_filter: 'int'
-                    halign: 'center'
-                    padding: ['0dp', '14dp']
+        BoxLayout:
+            orientation: 'horizontal'
+            size_hint_y: None
+            height: '50dp'
+            spacing: '10dp'
+            
+            Label:
+                text: 'End:'
+                bold: True
+                size_hint_x: None
+                width: '40dp'
+            CleanInput:
+                id: end_m
+                text: '00'
+                input_filter: 'int'
+                halign: 'center'
+            Label:
+                text: ':'
+                bold: True
+                font_size: '20sp'
+                size_hint_x: None
+                width: '10dp'
+            CleanInput:
+                id: end_s
+                text: '15'
+                input_filter: 'int'
+                halign: 'center'
 
         Spinner:
             id: ratio_spinner
             text: '16:9 Standard HD'
             values: ('16:9 Standard HD', '9:16 Shorts / Reels')
             size_hint_y: None
-            height: '50dp'
+            height: '45dp'
             background_normal: ''
-            background_color: 0.95, 0.95, 0.95, 1
+            background_color: 1, 1, 1, 1
             color: 0, 0, 0, 1
             font_size: '15sp'
             bold: True
@@ -154,19 +138,19 @@ KV = '''
         font_size: '18sp'
         bold: True
         size_hint_y: None
-        height: '65dp'
+        height: '60dp'
         on_press: root.start_clipping_thread()
 
     Label:
         id: status_label
         text: 'Ready to clip.'
-        color: 0.6, 0.6, 0.6, 1
-        font_size: '14sp'
+        color: 0.8, 0.8, 0.8, 1
+        font_size: '13sp'
         size_hint_y: None
-        height: '40dp'
+        height: '60dp'
         halign: 'center'
-        valign: 'middle'
-        text_size: self.size
+        valign: 'top'
+        text_size: self.width, None
 
     Widget: 
 '''
@@ -185,11 +169,24 @@ class NullWriter:
 
 class ClipperLayout(BoxLayout):
     def get_ffmpeg_binary(self):
+        # Method 1: Use Android's Java Bridge to get the exact authorized system path
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            lib_dir = PythonActivity.mActivity.getApplicationInfo().nativeLibraryDir
+            ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
+            if os.path.exists(ffmpeg_path):
+                return ffmpeg_path
+        except Exception:
+            pass
+
+        # Method 2: Fallback for older Android versions
         home_dir = os.environ.get('HOME', '')
         lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
         ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
         if os.path.exists(ffmpeg_path):
             return ffmpeg_path
+
         return None
 
     def start_clipping_thread(self):
@@ -209,15 +206,19 @@ class ClipperLayout(BoxLayout):
             self.ids.status_label.text = "Error: End time must be after Start time."
             return
 
+        # Explicitly check for the Engine before trying to download
+        ffmpeg_path = self.get_ffmpeg_binary()
+        if not ffmpeg_path:
+            self.ids.status_label.text = "Error: FFmpeg engine missing. Check GitHub Actions."
+            return
+
         self.ids.clip_btn.disabled = True
-        self.ids.status_label.text = "Extracting clip..."
+        self.ids.status_label.text = "Engine found! Extracting clip..."
         
         ratio = self.ids.ratio_spinner.text
-        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio), daemon=True).start()
+        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio, ffmpeg_path), daemon=True).start()
 
-    def process_clip(self, url, start_sec, end_sec, ratio):
-        ffmpeg_path = self.get_ffmpeg_binary()
-
+    def process_clip(self, url, start_sec, end_sec, ratio, ffmpeg_path):
         download_dir = "/storage/emulated/0/Download"
         if not os.path.exists(download_dir):
             download_dir = os.path.expanduser("~")
@@ -232,10 +233,8 @@ class ClipperLayout(BoxLayout):
             'quiet': True,
             'noprogress': True,
             'logger': YTDLLogger(),
+            'ffmpeg_location': ffmpeg_path
         }
-
-        if ffmpeg_path and os.path.exists(ffmpeg_path):
-            ydl_opts['ffmpeg_location'] = ffmpeg_path
 
         if "9:16" in ratio:
             ydl_opts['postprocessor_args'] = {
@@ -250,7 +249,7 @@ class ClipperLayout(BoxLayout):
                 ydl.download([url])
             self.update_status("Success! Clip saved to your Downloads folder.")
         except Exception as err:
-            self.update_status(f"Error: {str(err)[:50]}")
+            self.update_status(f"Download Error: {str(err)[:60]}")
         finally:
             sys.stderr, sys.stdout = old_stderr, old_stdout
 
