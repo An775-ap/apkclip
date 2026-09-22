@@ -1,7 +1,6 @@
 import os
 import sys
 import threading
-import shutil
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.uix.boxlayout import BoxLayout
@@ -171,7 +170,7 @@ class ClipperLayout(BoxLayout):
     def get_ffmpeg_binary(self):
         native_lib = None
         
-        # 1. Locate the hidden system library
+        # 1. Locate the authorized system library
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -189,17 +188,16 @@ class ClipperLayout(BoxLayout):
             if os.path.exists(ffmpeg_path):
                 native_lib = ffmpeg_path
 
-        # 2. Copy it to writable storage and force executable permissions
+        # 2. Trick yt-dlp by creating a symlink (shortcut) named exactly "ffmpeg"
         if native_lib:
             files_dir = os.environ.get('HOME', '')
-            executable_ffmpeg = os.path.join(files_dir, 'ffmpeg_exec')
+            ffmpeg_symlink = os.path.join(files_dir, 'ffmpeg')
             
             try:
-                # Only copy if it doesn't already exist to save processing time
-                if not os.path.exists(executable_ffmpeg) or os.path.getsize(executable_ffmpeg) != os.path.getsize(native_lib):
-                    shutil.copy2(native_lib, executable_ffmpeg)
-                    os.chmod(executable_ffmpeg, 0o777)
-                return executable_ffmpeg
+                if os.path.lexists(ffmpeg_symlink):
+                    os.remove(ffmpeg_symlink)
+                os.symlink(native_lib, ffmpeg_symlink)
+                return ffmpeg_symlink
             except Exception:
                 return native_lib
                 
