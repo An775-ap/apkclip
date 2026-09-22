@@ -1,28 +1,20 @@
 [app]
-title = YT Clipper Pro
-package.name = ytclipperpro
-package.domain = com.clipper
+title = YT Downloader Pro
+package.name = ytdownloader
+package.domain = org.masshet
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 1.0
-
-# Dependencies needed for yt-dlp, video handling, and network requests
-requirements = python3,kivy,yt-dlp,certifi,urllib3,requests
-
+requirements = python3,kivy,yt-dlp
 orientation = portrait
-fullscreen = 0
-
-# Storage and network permissions
-# (list) Permissions
-# (list) Gradle dependencies to add
-android.gradle_dependencies = com.arthenica:ffmpeg-kit-full:4.5.1-1
+osx.kivy_version = 1.9.1
+osx.mac_deps =
+osx.mac_deps.kivy =
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
-# (int) Target Android API, should be as high as possible.
 android.api = 33
-# (int) Minimum API your APK / AAB will support.
-android.minapi = 24
+android.minapi = 21
 android.archs = arm64-v8a
-android.add_libs_arm64_v8a = libs/arm64-v8a/*.so
+android.accept_sdk_license = True
 
 [buildozer]
 log_level = 2
