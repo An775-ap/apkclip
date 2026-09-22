@@ -156,53 +156,7 @@ KV = '''
 
 Builder.load_string(KV)
 
-class YTDLLogger:
-    def debug(self, msg): pass
-    def warning(self, msg): pass
-    def error(self, msg): pass
-
-class NullWriter:
-    def write(self, s): pass
-    def flush(self): pass
-    def isatty(self): return False
-
 class ClipperLayout(BoxLayout):
-    def get_ffmpeg_binary(self):
-        native_lib = None
-        
-        # 1. Locate the authorized system library
-        try:
-            from jnius import autoclass
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            lib_dir = PythonActivity.mActivity.getApplicationInfo().nativeLibraryDir
-            ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
-            if os.path.exists(ffmpeg_path):
-                native_lib = ffmpeg_path
-        except Exception:
-            pass
-
-        if not native_lib:
-            home_dir = os.environ.get('HOME', '')
-            lib_dir = os.path.join(os.path.dirname(home_dir), 'lib')
-            ffmpeg_path = os.path.join(lib_dir, 'libffmpeg.so')
-            if os.path.exists(ffmpeg_path):
-                native_lib = ffmpeg_path
-
-        # 2. Trick yt-dlp by creating a symlink (shortcut) named exactly "ffmpeg"
-        if native_lib:
-            files_dir = os.environ.get('HOME', '')
-            ffmpeg_symlink = os.path.join(files_dir, 'ffmpeg')
-            
-            try:
-                if os.path.lexists(ffmpeg_symlink):
-                    os.remove(ffmpeg_symlink)
-                os.symlink(native_lib, ffmpeg_symlink)
-                return ffmpeg_symlink
-            except Exception:
-                return native_lib
-                
-        return None
-
     def start_clipping_thread(self):
         url = self.ids.url_input.text.strip()
         
@@ -220,51 +174,61 @@ class ClipperLayout(BoxLayout):
             self.ids.status_label.text = "Error: End time must be after Start time."
             return
 
-        ffmpeg_path = self.get_ffmpeg_binary()
-        if not ffmpeg_path:
-            self.ids.status_label.text = "Error: FFmpeg engine missing. Check GitHub Actions."
-            return
-
         self.ids.clip_btn.disabled = True
-        self.ids.status_label.text = "Engine authorized! Extracting clip..."
+        self.ids.status_label.text = "Connecting to YouTube..."
         
         ratio = self.ids.ratio_spinner.text
-        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio, ffmpeg_path), daemon=True).start()
+        threading.Thread(target=self.process_clip, args=(url, start_sec, end_sec, ratio), daemon=True).start()
 
-    def process_clip(self, url, start_sec, end_sec, ratio, ffmpeg_path):
+    def process_clip(self, url, start_sec, end_sec, ratio):
         download_dir = "/storage/emulated/0/Download"
         if not os.path.exists(download_dir):
             download_dir = os.path.expanduser("~")
 
-        output_path = os.path.join(download_dir, "clip_%(id)s.%(ext)s")
-
-        ydl_opts = {
-            'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]',
-            'outtmpl': output_path,
-            'download_ranges': yt_dlp.utils.download_range_func(None, [(start_sec, end_sec)]),
-            'force_keyframes_at_cuts': True,
-            'quiet': True,
-            'noprogress': True,
-            'logger': YTDLLogger(),
-            'ffmpeg_location': ffmpeg_path
-        }
-
-        if "9:16" in ratio:
-            ydl_opts['postprocessor_args'] = {
-                'ffmpeg': ['-vf', 'crop=ih*(9/16):ih']
-            }
-
-        old_stderr, old_stdout = sys.stderr, sys.stdout
-        sys.stderr, sys.stdout = NullWriter(), NullWriter()
-
+        # 1. Use yt-dlp quietly just to extract the raw video stream URL
+        ydl_opts = {'format': 'best[ext=mp4]', 'quiet': True, 'noprogress': True}
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-            self.update_status("Success! Clip saved to your Downloads folder.")
-        except Exception as err:
-            self.update_status(f"Download Error: {str(err)[:60]}")
-        finally:
-            sys.stderr, sys.stdout = old_stderr, old_stdout
+                info = ydl.extract_info(url, download=False)
+                stream_url = info.get('url')
+                video_id = info.get('id', 'video')
+        except Exception as e:
+            self.update_status(f"Extraction Error: {str(e)[:50]}")
+            return
+
+        if not stream_url:
+            self.update_status("Error: Could not extract video stream.")
+            return
+
+        output_path = os.path.join(download_dir, f"clip_{video_id}.mp4")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+
+        duration = end_sec - start_sec
+        self.update_status("Processing clip via Java native engine...")
+
+        # 2. Build the command string
+        if "9:16" in ratio:
+            # Re-encode specifically to crop the center for Reels/Shorts
+            cmd = f"-ss {start_sec} -i \"{stream_url}\" -t {duration} -vf \"crop=ih*(9/16):ih\" -c:v libx264 -preset ultrafast -c:a copy \"{output_path}\""
+        else:
+            # Fast copy for standard HD
+            cmd = f"-ss {start_sec} -i \"{stream_url}\" -t {duration} -c copy \"{output_path}\""
+
+        # 3. Execute directly through Android's Java memory using pyjnius
+        try:
+            from jnius import autoclass
+            FFmpegKit = autoclass('com.arthenica.ffmpegkit.FFmpegKit')
+            
+            session = FFmpegKit.execute(cmd)
+            return_code = session.getReturnCode().getValue()
+            
+            if return_code == 0:
+                self.update_status("Success! Clip saved to your Downloads folder.")
+            else:
+                self.update_status("Processing Error: Engine failed to compile video.")
+        except Exception as e:
+            self.update_status(f"Java Error: {str(e)[:50]}")
 
     @mainthread
     def update_status(self, message):
